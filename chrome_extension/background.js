@@ -1,168 +1,87 @@
 // background.js
-const API_KEY = 'a61dd813518e47338d62910469c38d03.pN7GuGKV5khelLRJ'; // Замените на ваш ключ
-const API_URL = 'https://api.anthropic.com/v1/messages';
+async function runTask(task) {
+  try {
+    const response = await fetch('http://localhost:5000/task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task: task })
+    });
+    const data = await response.json();
+    console.log('Actions:', data.actions);
 
-let messages = [];
-let currentTabId = null;
-
-async function callAnthropic(messages, tools) {
-  const response = await fetch(API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-3-5-sonnet-latest',
-      max_tokens: 1000,
-      messages: messages,
-      tools: tools
-    })
-  });
-  return await response.json();
+    for (let action of data.actions) {
+      await executeAction(action);
+    }
+    console.log('Task completed');
+  } catch (error) {
+    console.error('Error:', error);
+  }
 }
 
-const tools = [
-  {
-    name: 'navigate_to',
-    description: 'Перейти на указанный URL',
-    input_schema: {
-      type: 'object',
-      properties: { url: { type: 'string' } },
-      required: ['url']
-    }
-  },
-  {
-    name: 'click_element',
-    description: 'Кликнуть на элемент по описанию',
-    input_schema: {
-      type: 'object',
-      properties: { description: { type: 'string' } },
-      required: ['description']
-    }
-  },
-  {
-    name: 'type_text',
-    description: 'Ввести текст в поле',
-    input_schema: {
-      type: 'object',
-      properties: { description: { type: 'string' }, text: { type: 'string' } },
-      required: ['description', 'text']
-    }
-  },
-  {
-    name: 'extract_text',
-    description: 'Извлечь текст из элемента',
-    input_schema: {
-      type: 'object',
-      properties: { description: { type: 'string' } },
-      required: ['description']
-    }
-  },
-  {
-    name: 'get_page_content',
-    description: 'Получить HTML страницы',
-    input_schema: { type: 'object', properties: {} }
-  }
-];
-
-async function executeTool(name, input) {
+async function executeAction(action) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  currentTabId = tab.id;
+  const tabId = tab.id;
 
-  switch (name) {
+  switch (action.action) {
     case 'navigate_to':
-      await chrome.tabs.update(currentTabId, { url: input.url });
-      return `Navigated to ${input.url}`;
+      await chrome.tabs.update(tabId, { url: action.params.url });
+      break;
     case 'click_element':
-      const clickResult = await chrome.scripting.executeScript({
-        target: { tabId: currentTabId },
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
         func: (desc) => {
           const elements = Array.from(document.querySelectorAll('*')).filter(el =>
             el.textContent.toLowerCase().includes(desc.toLowerCase()) ||
             el.getAttribute('title')?.toLowerCase().includes(desc.toLowerCase())
           );
-          if (elements.length > 0) {
-            elements[0].click();
-            return `Clicked on ${desc}`;
-          }
-          return `Element not found: ${desc}`;
+          if (elements.length > 0) elements[0].click();
         },
-        args: [input.description]
+        args: [action.params.description]
       });
-      return clickResult[0].result;
+      break;
     case 'type_text':
-      const typeResult = await chrome.scripting.executeScript({
-        target: { tabId: currentTabId },
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
         func: (desc, txt) => {
-          const inputs = document.querySelectorAll('input[type="text"], input[type="search"], textarea');
+          const inputs = document.querySelectorAll('input[type="text"], textarea');
           for (let input of inputs) {
             if (input.placeholder.toLowerCase().includes(desc.toLowerCase())) {
               input.value = txt;
-              input.dispatchEvent(new Event('input', { bubbles: true }));
-              return `Typed '${txt}' into ${desc}`;
+              input.dispatchEvent(new Event('input'));
             }
           }
-          return `Input not found: ${desc}`;
         },
-        args: [input.description, input.text]
+        args: [action.params.description, action.params.text]
       });
-      return typeResult[0].result;
+      break;
     case 'extract_text':
-      const extractResult = await chrome.scripting.executeScript({
-        target: { tabId: currentTabId },
+      const result = await chrome.scripting.executeScript({
+        target: { tabId: tabId },
         func: (desc) => {
           const elements = Array.from(document.querySelectorAll('*')).filter(el =>
             el.textContent.toLowerCase().includes(desc.toLowerCase())
           );
-          return elements.length > 0 ? elements[0].textContent : `Not found: ${desc}`;
+          return elements.length > 0 ? elements[0].textContent : '';
         },
-        args: [input.description]
+        args: [action.params.description]
       });
-      return extractResult[0].result;
+      console.log('Extracted:', result[0].result);
+      break;
     case 'get_page_content':
-      const contentResult = await chrome.scripting.executeScript({
-        target: { tabId: currentTabId },
+      const content = await chrome.scripting.executeScript({
+        target: { tabId: tabId },
         func: () => document.documentElement.outerHTML
       });
-      return contentResult[0].result;
-    default:
-      return 'Unknown tool';
+      console.log('Page content:', content[0].result.substring(0, 500));
+      break;
   }
-}
-
-async function runTask(task) {
-  messages = [
-    { role: 'user', content: `Ты - автономный AI-агент. Задача: ${task}. Используй инструменты. Когда выполнено, скажи 'Задача выполнена'.` }
-  ];
-
-  while (true) {
-    const response = await callAnthropic(messages, tools);
-    const content = response.content;
-
-    for (let block of content) {
-      if (block.type === 'text') {
-        console.log('AI:', block.text);
-        if (block.text.includes('Задача выполнена')) {
-          return;
-        }
-      } else if (block.type === 'tool_use') {
-        const toolName = block.name;
-        const toolInput = block.input;
-        console.log('Calling tool:', toolName, toolInput);
-        const result = await executeTool(toolName, toolInput);
-        messages.push({ role: 'assistant', content: content });
-        messages.push({ role: 'user', content: `Результат: ${result}` });
-        break;
-      }
-    }
-  }
+  // Wait a bit
+  await new Promise(resolve => setTimeout(resolve, 2000));
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'run_task') {
-    runTask(request.task).then(() => sendResponse({ status: 'done' }));
-    return true; // Keep message channel open
+    runTask(request.task);
+    sendResponse({ status: 'started' });
   }
 });
