@@ -1,36 +1,28 @@
-# AI Browser Agent
+# AI Browser Agent (Chrome Extension)
 
-Автономный AI-агент, управляющий веб-браузером для выполнения сложных многошаговых задач.
+Автономный AI-агент как расширение для Google Chrome.
 
 ## Установка
 
-1. Установите Python 3.8+.
-2. Создайте виртуальное окружение: `python -m venv .venv`
-3. Активируйте: `.venv\Scripts\activate` (Windows)
-4. Установите зависимости: `pip install -r requirements.txt`
-5. Установите браузеры: `python -m playwright install`
+1. Откройте Chrome, перейдите в chrome://extensions/
+2. Включите "Developer mode"
+3. Нажмите "Load unpacked" и выберите папку `chrome_extension`
+4. Расширение установлено.
 
-## Настройка
+## Использование
 
-Получите API-ключ от Anthropic и установите переменную окружения `ANTHROPIC_API_KEY`.
-
-## Запуск
-
-Запустите `python AI_Agent.py` и введите задачу.
+1. Кликните на иконку расширения.
+2. Введите задачу в textarea.
+3. Нажмите "Запустить".
+4. Агент автономно выполнит задачу в активной вкладке.
 
 ## Архитектура
 
-- **AI SDK**: Anthropic Claude для reasoning и tool calling.
-- **Браузер**: Playwright для автоматизации.
-- **Паттерн**: ReAct (Reasoning + Acting) с tool calling для автономности.
-- **Управление контекстом**: История сообщений для поддержания состояния.
+- **Background Service Worker**: AI reasoning и tool calling.
+- **Content Scripts**: Выполнение действий на странице.
+- **Popup**: UI для ввода задач.
 
 ## Продвинутые паттерны
 
-- **Tool Calling**: Динамическое выполнение действий без предопределенных шагов.
-- **Smart Locators**: Playwright's intelligent element finding на основе описаний.
-
-## Примеры задач
-
-- "Найди информацию о вакансиях Python разработчика на hh.ru"
-- "Закажи пиццу на сайте доставки"
+- **Tool Calling**: Динамическое выполнение через Anthropic API.
+- **Autonomous Execution**: Агент сам определяет шаги без скриптов.

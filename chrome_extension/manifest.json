@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "AI Browser Agent",
+  "version": "1.0",
+  "description": "Автономный AI-агент для управления браузером",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AI Agent"
+  },
+  "host_permissions": [
+    "https://api.anthropic.com/*"
+  ]
+}

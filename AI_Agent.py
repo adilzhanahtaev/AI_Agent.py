@@ -172,7 +172,8 @@ if __name__ == "__main__":
     agent = BrowserAgent()
     agent.start_browser()
     try:
-        task = input("Введите задачу для агента: ")
+        # task = input("Введите задачу для агента: ")
+        task = "Перейди на google.com, введи 'Python' в поиск и извлеки первый результат."
         agent.run_task(task)
     finally:
         agent.stop_browser()
